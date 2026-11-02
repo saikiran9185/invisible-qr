@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InvisibleQR</title>
+<meta name="description" content="A QR code you can't see — perceptually invisible, camera-readable codes inside ordinary images.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f2ed; --ink:#141414; --muted:#6b6862; --line:#d9d5cc; --card:#ffffffcc;
+  --accent:#1f4dff; --ok:#1a7f4b; --no:#b3261e;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0d0d0f; --ink:#ecebe7; --muted:#9a978f; --line:#2a2a2e; --card:#16161acc; --accent:#7f9bff; --ok:#5fd39a; --no:#ff8a80;}
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+nav{display:flex;justify-content:space-between;align-items:center;padding:22px 0;font:500 13px/1 'JetBrains Mono',monospace;letter-spacing:.04em}
+nav a{color:var(--muted);text-decoration:none;margin-left:20px}
+nav a:hover{color:var(--ink)}
+@media (max-width:560px){nav a:not(:last-child){display:none}}
+.mark{display:flex;gap:10px;align-items:center;color:var(--ink)}
+.dots{display:grid;grid-template-columns:repeat(3,5px);gap:2px}
+.dots i{width:5px;height:5px;background:var(--ink);opacity:.12}
+.dots i:nth-child(1),.dots i:nth-child(5),.dots i:nth-child(7),.dots i:nth-child(9){opacity:1}
+header{padding:72px 0 56px;border-bottom:1px solid var(--line)}
+.eyebrow{font:600 12px 'JetBrains Mono',monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+h1{font:400 clamp(52px,10vw,124px)/.92 'Instrument Serif',serif;letter-spacing:-.02em;margin:18px 0 26px}
+h1 em{color:var(--muted)}
+.lede{max-width:620px;font-size:clamp(17px,2.2vw,20px);color:var(--muted)}
+section{padding:72px 0;border-bottom:1px solid var(--line)}
+h2{font:400 clamp(34px,5vw,52px)/1 'Instrument Serif',serif;margin:10px 0 28px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start}
+@media (max-width:760px){.grid2{grid-template-columns:1fr}}
+/* compare slider */
+.compare{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);aspect-ratio:16/10;user-select:none;touch-action:none;cursor:ew-resize}
+.compare img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.compare .top{clip-path:inset(0 0 0 50%)}
+.handle{position:absolute;top:0;bottom:0;left:50%;width:2px;background:#fff;box-shadow:0 0 0 1px #0003}
+.handle::after{content:"⇆";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:36px;height:36px;border-radius:50%;background:#fff;color:#111;display:grid;place-items:center;font-size:16px}
+.tag{position:absolute;bottom:12px;font:600 11px 'JetBrains Mono',monospace;letter-spacing:.08em;background:#000a;color:#fff;padding:5px 8px;border-radius:6px}
+.tag.l{left:12px}.tag.r{right:12px}
+.controls{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+button{font:500 13px 'JetBrains Mono',monospace;background:transparent;color:var(--ink);border:1px solid var(--line);padding:9px 14px;border-radius:999px;cursor:pointer}
+button[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.note{color:var(--muted);font-size:14px;margin-top:10px}
+/* steps */
+ol.steps{list-style:none;padding:0;margin:0;counter-reset:s}
+ol.steps li{counter-increment:s;padding:18px 0;border-top:1px solid var(--line);display:grid;grid-template-columns:48px 1fr;gap:8px}
+ol.steps li::before{content:counter(s,decimal-leading-zero);font:600 13px 'JetBrains Mono',monospace;color:var(--accent);padding-top:3px}
+ol.steps b{display:block;font-weight:600}
+ol.steps span{color:var(--muted);font-size:15px}
+/* tile viz */
+.tile{display:grid;grid-template-columns:repeat(12,1fr);gap:2px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+.tile i{aspect-ratio:1;border-radius:2px;background:var(--line)}
+.tile i.s{background:var(--accent)}
+.tile i.p1{background:var(--ink)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font:12px 'JetBrains Mono',monospace;color:var(--muted);margin-top:12px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+/* payload */
+.bits{display:flex;border-radius:10px;overflow:hidden;border:1px solid var(--line);font:600 12px 'JetBrains Mono',monospace}
+.bits div{padding:16px 10px;border-right:1px solid var(--line);min-width:0}
+.bits div:last-child{border-right:0}
+.bits small{display:block;font-weight:400;color:var(--muted);margin-top:4px}
+pre{font:13px/1.55 'JetBrains Mono',monospace;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;overflow-x:auto;margin:22px 0 0}
+/* results */
+table{width:100%;border-collapse:collapse;font-size:15px}
+td,th{text-align:left;padding:12px 0;border-top:1px solid var(--line)}
+th{font:600 12px 'JetBrains Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+td:last-child,th:last-child{text-align:right;font-family:'JetBrains Mono',monospace}
+.y{color:var(--ok)}.n{color:var(--no)}
+/* roadmap */
+.phases{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media (max-width:860px){.phases{grid-template-columns:1fr 1fr}}
+@media (max-width:480px){.phases{grid-template-columns:1fr}}
+.phase{border:1px solid var(--line);border-radius:14px;padding:20px;background:var(--card)}
+.phase.done{border-color:var(--accent)}
+.phase small{font:600 11px 'JetBrains Mono',monospace;letter-spacing:.1em;color:var(--accent)}
+.phase h3{font:400 26px/1.1 'Instrument Serif',serif;margin:8px 0}
+.phase p{margin:0;color:var(--muted);font-size:14px}
+footer{padding:40px 0 60px;font:13px 'JetBrains Mono',monospace;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <span class="mark"><span class="dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>InvisibleQR</span>
+    <span><a href="#how">How</a><a href="#results">Results</a><a href="#roadmap">Roadmap</a><a href="SPEC.md">Spec</a></span>
+  </nav>
+
+  <header>
+    <div class="eyebrow">IQR-1 · Research prototype</div>
+    <h1>A QR code<br><em>you can't see.</em></h1>
+    <p class="lede">InvisibleQR repeats tiny encoded patterns across an ordinary image. People see the photo. A scanner sees a recoverable code that links to product details, provenance or ownership.</p>
+  </header>
+
+  <section>
+    <div class="eyebrow">Spot the difference</div>
+    <h2>Drag across the image.</h2>
+    <div class="compare" id="cmp">
+      <img src="original.png" alt="Original test image">
+      <img class="top" id="top" src="encoded.png" alt="Same image carrying a hidden InvisibleQR code">
+      <div class="handle" id="hdl"></div>
+      <span class="tag l">ORIGINAL</span><span class="tag r" id="rtag">ENCODED</span>
+    </div>
+    <div class="controls">
+      <button id="bEnc" aria-pressed="true">Encoded</button>
+      <button id="bDiff" aria-pressed="false">Difference ×40</button>
+    </div>
+    <p class="note">Right side carries ID <code>8F32A91C72B4D610</code>. The difference view amplifies the change 40× — at normal scale it averages about one brightness level per pixel (PSNR ≈ 43 dB).</p>
+  </section>
+
+  <section id="how">
+    <div class="grid2">
+      <div>
+        <div class="eyebrow">How it works</div>
+        <h2>Distributed, not stamped.</h2>
+        <ol class="steps">
+          <li><div><b>Divide</b><span>Split the image into 8×8-pixel blocks, grouped into repeating 12×12-block tiles.</span></div></li>
+          <li><div><b>Embed</b><span>Each block carries one bit, hidden by nudging two mid-frequency brightness frequencies.</span></div></li>
+          <li><div><b>Repeat</b><span>The 144-slot frame repeats in every tile, so any ~96 px patch holds a full copy.</span></div></li>
+          <li><div><b>Recover</b><span>The decoder finds the sync pattern, votes across every copy and checks the CRC.</span></div></li>
+        </ol>
+      </div>
+      <div>
+        <div class="tile" id="tile" aria-label="One tile: 144 slots"></div>
+        <div class="legend"><span><i style="background:var(--accent)"></i>sync</span><span><i style="background:var(--ink)"></i>payload 1</span><span><i style="background:var(--line)"></i>payload 0</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Payload</div>
+    <h2>92 bits. An ID, not the content.</h2>
+    <div class="bits">
+      <div style="flex:4">VER<small>4</small></div>
+      <div style="flex:64">IDENTIFIER<small>64 bits · points to a registry record</small></div>
+      <div style="flex:8">TYPE<small>8</small></div>
+      <div style="flex:16">CRC<small>16</small></div>
+    </div>
+<pre>{
+  "protocol": "IQR-1",
+  "id": "8F32A91C72B4D610",
+  "type": "image",
+  "verification": "valid"
+}</pre>
+    <p class="note">The CRC catches read errors; authenticity comes from a signed registry record.</p>
+  </section>
+
+  <section id="results">
+    <div class="eyebrow">Phase 1 baseline</div>
+    <h2>What survives today.</h2>
+    <table>
+      <tr><th>Condition</th><th>Decoded</th></tr>
+      <tr><td>Lossless PNG</td><td class="y">yes</td></tr>
+      <tr><td>JPEG quality 95 · 85 · 75 · 65</td><td class="y">yes</td></tr>
+      <tr><td>JPEG quality 55 and below</td><td class="n">no</td></tr>
+      <tr><td>Crop at any offset, down to 120×120 px</td><td class="y">yes</td></tr>
+      <tr><td>Crop + JPEG 85</td><td class="y">yes</td></tr>
+      <tr><td>Resize, rotation, perspective, print → camera</td><td class="n">phase 2</td></tr>
+    </table>
+  </section>
+
+  <section id="roadmap">
+    <div class="eyebrow">Roadmap</div>
+    <h2>Four phases.</h2>
+    <div class="phases">
+      <div class="phase done"><small>01 · DONE</small><h3>Digital encoding</h3><p>Payload format, classical codec, CLI and robustness tests.</p></div>
+      <div class="phase"><small>02</small><h3>Camera decoding</h3><p>Neural encoder/decoder trained on camera distortions; Android scanner.</p></div>
+      <div class="phase"><small>03</small><h3>Physical print</h3><p>Paper, posters and packaging; print-and-capture testing.</p></div>
+      <div class="phase"><small>04</small><h3>Open protocol</h3><p>Public spec, reference decoder, signed registry, C2PA link.</p></div>
+    </div>
+  </section>
+
+  <footer><span>Saikiran Chepuri · USDI, GGSIPU</span><span>Builds on StegaStamp (CVPR 2020)</span></footer>
+</div>
+<script>
+(() => {
+  const cmp = document.getElementById('cmp'), top = document.getElementById('top'), hdl = document.getElementById('hdl');
+  const set = x => { const r = cmp.getBoundingClientRect(); const p = Math.min(100, Math.max(0, (x - r.left) / r.width * 100));
+    top.style.clipPath = `inset(0 0 0 ${p}%)`; hdl.style.left = p + '%'; };
+  let drag = false;
+  cmp.addEventListener('pointerdown', e => { drag = true; cmp.setPointerCapture(e.pointerId); set(e.clientX); });
+  cmp.addEventListener('pointermove', e => drag && set(e.clientX));
+  cmp.addEventListener('pointerup', () => drag = false);
+  const bE = document.getElementById('bEnc'), bD = document.getElementById('bDiff'), tag = document.getElementById('rtag');
+  const mode = d => { top.src = d ? 'difference.png' : 'encoded.png'; tag.textContent = d ? 'DIFFERENCE ×40' : 'ENCODED';
+    bE.setAttribute('aria-pressed', !d); bD.setAttribute('aria-pressed', d); };
+  bE.onclick = () => mode(false); bD.onclick = () => mode(true);
+
+  // tile: sync(16) payload(92) sync(16) payload(20), sample ID bits
+  const sync = [1,0,1,1,0,0,1,0,1,1,1,0,0,0,1,0];
+  const id = 0x8F32A91C72B4D610n; const pay = [0,0,0,1];
+  for (let i = 63; i >= 0; i--) pay.push(Number((id >> BigInt(i)) & 1n));
+  pay.push(0,0,0,0,0,0,1,0); for (let i = 0; i < 16; i++) pay.push((i * 7 + 3) % 3 === 0 ? 1 : 0);
+  const kinds = [...sync.map(_=>'s'), ...pay.map(b=>b?'p1':''), ...sync.map(_=>'s'), ...pay.slice(0,20).map(b=>b?'p1':'')];
+  document.getElementById('tile').innerHTML = kinds.map(k => `<i class="${k}"></i>`).join('');
+})();
+</script>
+</body>
+</html>
