@@ -79,6 +79,8 @@ td:last-child,th:last-child{text-align:right;font-family:'JetBrains Mono',monosp
 @media (max-width:480px){.phases{grid-template-columns:1fr}}
 .phase{border:1px solid var(--line);border-radius:14px;padding:20px;background:var(--card)}
 .phase.done{border-color:var(--accent)}
+h3.sub{font:400 28px/1.1 'Instrument Serif',serif;margin:0 0 6px}
+.grid2 table{margin-top:16px}
 .phase small{font:600 11px 'JetBrains Mono',monospace;letter-spacing:.1em;color:var(--accent)}
 .phase h3{font:400 26px/1.1 'Instrument Serif',serif;margin:8px 0}
 .phase p{margin:0;color:var(--muted);font-size:14px}
@@ -93,7 +95,7 @@ footer{padding:40px 0 60px;font:13px 'JetBrains Mono',monospace;color:var(--mute
   </nav>
 
   <header>
-    <div class="eyebrow">IQR-1 · Research prototype</div>
+    <div class="eyebrow">IQR-1 · Research prototype · v0.2</div>
     <h1>A QR code<br><em>you can't see.</em></h1>
     <p class="lede">InvisibleQR repeats tiny encoded patterns across an ordinary image. People see the photo. A scanner sees a recoverable code that links to product details, provenance or ownership.</p>
   </header>
@@ -152,26 +154,51 @@ footer{padding:40px 0 60px;font:13px 'JetBrains Mono',monospace;color:var(--mute
   </section>
 
   <section id="results">
-    <div class="eyebrow">Phase 1 baseline</div>
-    <h2>What survives today.</h2>
-    <table>
-      <tr><th>Condition</th><th>Decoded</th></tr>
-      <tr><td>Lossless PNG</td><td class="y">yes</td></tr>
-      <tr><td>JPEG quality 95 · 85 · 75 · 65</td><td class="y">yes</td></tr>
-      <tr><td>JPEG quality 55 and below</td><td class="n">no</td></tr>
-      <tr><td>Crop at any offset, down to 120×120 px</td><td class="y">yes</td></tr>
-      <tr><td>Crop + JPEG 85</td><td class="y">yes</td></tr>
-      <tr><td>Resize, rotation, perspective, print → camera</td><td class="n">phase 2</td></tr>
-    </table>
+    <div class="eyebrow">Two profiles</div>
+    <h2>Screen or paper.</h2>
+    <div class="grid2">
+      <div>
+        <h3 class="sub">Digital · C1</h3>
+        <p class="note">For files, screens and social media. Strongest invisibility (≈43 dB).</p>
+        <table>
+          <tr><th>Condition</th><th>Decoded</th></tr>
+          <tr><td>Lossless PNG</td><td class="y">yes</td></tr>
+          <tr><td>JPEG 95 · 85 · 75 · 65</td><td class="y">yes</td></tr>
+          <tr><td>JPEG 55 and below</td><td class="n">no</td></tr>
+          <tr><td>Crops down to 120×120 px</td><td class="y">yes</td></tr>
+          <tr><td>Resize · rotate · print</td><td class="n">use C2</td></tr>
+        </table>
+      </div>
+      <div>
+        <h3 class="sub">Print · C2</h3>
+        <p class="note">For posters and packaging. A faint pilot texture lets the decoder undo scale and rotation; error correction fixes damaged bits.</p>
+        <table>
+          <tr><th>Simulated print → scan</th><th>Decoded</th></tr>
+          <tr><td>Halftone print, straight scan</td><td class="y">yes</td></tr>
+          <tr><td>Scanned 1.3× larger, 3° crooked</td><td class="y">yes</td></tr>
+          <tr><td>Scanned smaller, noisy, JPEG 70</td><td class="y">yes</td></tr>
+          <tr><td>Rotated 30°</td><td class="y">yes</td></tr>
+          <tr><td>Dark exposure, 12° tilt, 1.5×</td><td class="y">yes</td></tr>
+          <tr><td>Real photos, print-file size</td><td class="y">12 / 12</td></tr>
+          <tr><td>False codes on unmarked images</td><td class="y">0 / 27</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Do I need a special scanner?</div>
+    <h2>No. Just the decoder.</h2>
+    <p class="lede">Any flatbed scanner, phone camera or webcam captures the picture. The InvisibleQR decoder reads the code from it — today a command-line tool, next a phone app. A normal camera app won't see anything on its own.</p>
   </section>
 
   <section id="roadmap">
     <div class="eyebrow">Roadmap</div>
     <h2>Four phases.</h2>
     <div class="phases">
-      <div class="phase done"><small>01 · DONE</small><h3>Digital encoding</h3><p>Payload format, classical codec, CLI and robustness tests.</p></div>
-      <div class="phase"><small>02</small><h3>Camera decoding</h3><p>Neural encoder/decoder trained on camera distortions; Android scanner.</p></div>
-      <div class="phase"><small>03</small><h3>Physical print</h3><p>Paper, posters and packaging; print-and-capture testing.</p></div>
+      <div class="phase done"><small>01 · DONE</small><h3>Digital + print codecs</h3><p>Payload format, C1 and C2 codecs, error correction, print-scan simulator.</p></div>
+      <div class="phase"><small>02</small><h3>Camera decoding</h3><p>Perspective correction, neural codec, Android scanner app.</p></div>
+      <div class="phase"><small>03</small><h3>Real print tests</h3><p>Real printers, paper, posters and packaging.</p></div>
       <div class="phase"><small>04</small><h3>Open protocol</h3><p>Public spec, reference decoder, signed registry, C2PA link.</p></div>
     </div>
   </section>
