@@ -1,0 +1,9 @@
+{
+  "protocol": "IQR-1",
+  "id": "8F32A91C72B4D610",
+  "type": "product",
+  "verification": "valid",
+  "confidence": 0.862,
+  "profile": "print",
+  "psnr_db": 42.2
+}

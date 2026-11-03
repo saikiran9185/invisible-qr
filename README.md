@@ -4,6 +4,26 @@
 
 The goal is *perceptually invisible, machine-detectable* encoding. A camera can only read what changes the pixels measurably, so the signal is kept below what the eye notices but above what a decoder can recover.
 
+## Demo
+
+**▶ [Watch the 50-second explainer](demo/explainer.mp4)**
+
+[![Explainer video](demo/video_thumbnail.jpg)](demo/explainer.mp4)
+
+A coffee poster is encoded with a hidden product ID, put through a simulated print + crooked scan, and decoded back:
+
+| Poster with hidden code | Hidden pattern (×40) | Simulated scan |
+|---|---|---|
+| ![](demo/2_poster_invisibleqr.png) | ![](demo/3_hidden_pattern_x40.png) | ![](demo/4_simulated_scan.jpg) |
+
+Decoded from the scan ([`demo/5_decode_result.json`](demo/5_decode_result.json)):
+
+```json
+{ "protocol": "IQR-1", "id": "8F32A91C72B4D610", "type": "product", "verification": "valid", "profile": "print" }
+```
+
+Rebuild it yourself: `pip install scikit-image && python demo/make_demo.py && python demo/make_video.py`
+
 ## Two profiles
 
 | | **Digital (C1)** | **Print (C2)** |

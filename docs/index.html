@@ -91,7 +91,7 @@ footer{padding:40px 0 60px;font:13px 'JetBrains Mono',monospace;color:var(--mute
 <div class="wrap">
   <nav>
     <span class="mark"><span class="dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>InvisibleQR</span>
-    <span><a href="#how">How</a><a href="#results">Results</a><a href="#roadmap">Roadmap</a><a href="SPEC.md">Spec</a></span>
+    <span><a href="#demo">Demo</a><a href="#how">How</a><a href="#results">Results</a><a href="#roadmap">Roadmap</a><a href="SPEC.md">Spec</a></span>
   </nav>
 
   <header>
@@ -114,6 +114,15 @@ footer{padding:40px 0 60px;font:13px 'JetBrains Mono',monospace;color:var(--mute
       <button id="bDiff" aria-pressed="false">Difference ×40</button>
     </div>
     <p class="note">Right side carries ID <code>8F32A91C72B4D610</code>. The difference view amplifies the change 40× — at normal scale it averages about one brightness level per pixel (PSNR ≈ 43 dB).</p>
+  </section>
+
+  <section id="demo">
+    <div class="eyebrow">Demo</div>
+    <h2>Fifty seconds, start to finish.</h2>
+    <video controls playsinline preload="metadata" poster="video_thumbnail.jpg" style="width:100%;border-radius:14px;border:1px solid var(--line);display:block;background:#000">
+      <source src="explainer.mp4" type="video/mp4">
+    </video>
+    <p class="note">A poster is encoded with a hidden product ID, printed and scanned crooked (simulated), then decoded back to the exact ID.</p>
   </section>
 
   <section id="how">

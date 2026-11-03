@@ -4,3 +4,4 @@ __pycache__/
 .venv/
 out*.png
 .DS_Store
+.video_tmp/
