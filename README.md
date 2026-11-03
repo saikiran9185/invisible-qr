@@ -1,5 +1,7 @@
 # InvisibleQR
 
+🌐 **Live site:** https://saikiran9185.github.io/invisible-qr/
+
 **A QR code you can't see.** InvisibleQR hides a small, recoverable code inside an ordinary image — a photo, poster, package or artwork — by repeating tiny encoded patterns across the whole picture. People see the normal image; a scanner reads the code.
 
 The goal is *perceptually invisible, machine-detectable* encoding. A camera can only read what changes the pixels measurably, so the signal is kept below what the eye notices but above what a decoder can recover.
