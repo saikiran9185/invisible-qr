@@ -36,9 +36,11 @@ from .payload import PAYLOAD_BITS, Payload
 CELL = 16                 # canonical px per cell
 CARRIER = 8.0             # canonical carrier period (2 periods per cell)
 PILOT = 13.0              # canonical pilot period (diagonal)
-DATA_AMP = 3.4            # base data amplitude (grey levels)
-PILOT_AMP = 0.9           # base pilot amplitude
+DATA_AMP = 3.0             # base data amplitude (grey levels)
+PILOT_AMP = 1.5            # base pilot amplitude (geometry anchor for photos)
+CELLS_SHORT = 48           # default data cells across the artwork's shorter side
 SYNC_THRESHOLD = 0.5
+WEIGHTED = True            # weight cells by local noise when decoding
 DUP_THRESHOLD = 0.3
 
 # Frame: one tile = PT x PT cells = 256 slots.
@@ -70,24 +72,29 @@ def _highpass(y: np.ndarray, sigma: float) -> np.ndarray:
     return y - gaussian_filter(y, sigma)
 
 
-def _mask(y: np.ndarray, win: int) -> np.ndarray:
-    """Perceptual mask: ~0.5 on flat areas, up to 1.4 on textured areas."""
+def _mask(y: np.ndarray, win: int, floor: float = 0.5) -> np.ndarray:
+    """Perceptual mask: `floor` on flat areas, up to 1.4 on textured areas."""
     m = uniform_filter(y, win)
     sd = np.sqrt(np.maximum(uniform_filter(y * y, win) - m * m, 0))
     lum = np.clip(np.minimum(m, 255 - m) / 40.0, 0.35, 1.0)   # protect near-black/white
-    return np.clip(0.5 + sd / 16.0, 0.5, 1.4) * lum
+    return np.clip(floor + sd / 16.0, floor, 1.4) * lum
 
 
 # ---------------------------------------------------------------- encode
 def encode_print(img: Image.Image, payload: Payload, cell_px: int | None = None,
-                 strength: float = 1.0) -> Image.Image:
-    """Embed a print-robust code. cell_px = size of one data cell in image pixels
-    (default: min(shorter side / 48, 20), at least 12 — big print files get
-    more tile copies, which is what makes decoding reliable)."""
+                 strength: float = 1.0, cells: int = CELLS_SHORT) -> Image.Image:
+    """Embed a print-robust code.
+
+    The pattern scales with the artwork: by default the shorter side holds
+    `cells` data cells (48 = 3 tiles), whatever the file's pixel size or the
+    print's physical size. So a phone photo that frames the whole poster
+    always sees the same pattern, whether it is an A5 flyer or an A0 banner.
+    Fewer cells = coarser pattern = readable from lower-res / farther photos,
+    but more visible up close. cell_px overrides this with a fixed size."""
     rgb = np.asarray(img.convert("RGB"), np.float64)
     h, w = rgb.shape[:2]
     if cell_px is None:
-        cell_px = int(np.clip(round(min(h, w) / (4 * PT)), 12, 20))
+        cell_px = max(12, int(round(min(h, w) / cells)))
     if min(h, w) < PT * cell_px:
         raise ValueError(f"image too small for cell_px={cell_px}: need {PT*cell_px}px")
     k = CELL / cell_px                                   # image px -> canonical px
@@ -102,14 +109,22 @@ def encode_print(img: Image.Image, payload: Payload, cell_px: int | None = None,
     pilot = PILOT_AMP * (np.cos(2 * np.pi * (u + v) / PILOT) + np.cos(2 * np.pi * (u - v) / PILOT))
 
     y = _luma(img)
-    delta = strength * _mask(y, max(5, cell_px)) * (data + pilot)
+    win = max(5, cell_px)
+    # the pilot is a regular lattice — the kind of pattern eyes spot first on
+    # plain areas — so it backs off much more there than the data does; it
+    # only needs total energy across the poster, which busy areas supply
+    delta = strength * (_mask(y, win) * data + _mask(y, win, floor=0.2) * pilot)
     out = rgb + delta[..., None]                         # luminance-only change
     return Image.fromarray(np.clip(np.rint(out), 0, 255).astype(np.uint8))
 
 
 # ---------------------------------------------------------------- decode
-def _pilot_candidates(y: np.ndarray, k: int = 6) -> list[tuple[float, float]]:
-    """Return up to k (scale, angle_rad) guesses from spectral pilot peaks."""
+_F = np.array([[1.0, 1.0], [1.0, -1.0]]) / PILOT     # columns: canonical pilot freqs
+
+
+def _peaks(y: np.ndarray, k: int = 8):
+    """Strongest pilot-like spectral peaks: list of (strength, gx, gy) in
+    cycles/pixel (half plane gy > 0), refined to sub-bin precision."""
     hp = _highpass(y, 4.0)
     h, w = hp.shape
     n = 1 << int(np.ceil(np.log2(max(h, w))))
@@ -120,45 +135,120 @@ def _pilot_candidates(y: np.ndarray, k: int = 6) -> list[tuple[float, float]]:
     fx, fy = np.meshgrid(f, f)
     r = np.hypot(fx, fy)
     r0 = np.sqrt(2) / PILOT
-    ann = (r > r0 / 3.0) & (r < r0 / 0.4)                 # scale 0.4x .. 3x
+    ann = (r > r0 / 4.0) & (r < r0 / 0.4)                 # scale 0.4x .. 4x
     ann &= (np.abs(fx) > 2 / n) & (np.abs(fy) > 2 / n)    # skip axis artefacts
     ann &= fy > 0                                         # half plane (symmetry)
     score = np.where(ann, wh, 0)
     peaks = (score == maximum_filter(score, size=9)) & (score > 0)
-    idx = np.argsort(score[peaks])[::-1][: k * 4]
     py, px = np.nonzero(peaks)
-    out: list[tuple[float, float]] = []
+    idx = np.argsort(score[py, px])[::-1][: k]
+
+    def sub(a, b, c):
+        d = a - 2 * b + c
+        return 0.0 if d == 0 else 0.5 * (a - c) / d
+    out = []
     for i in idx:
         yy, xx = py[i], px[i]
-        # parabolic sub-bin refinement
-        def sub(a, b, c):
-            d = a - 2 * b + c
-            return 0.0 if d == 0 else 0.5 * (a - c) / d
         dy = sub(F[yy - 1, xx], F[yy, xx], F[yy + 1, xx]) if 0 < yy < n - 1 else 0
         dx = sub(F[yy, xx - 1], F[yy, xx], F[yy, xx + 1]) if 0 < xx < n - 1 else 0
-        fxx, fyy = fx[yy, xx] + dx / n, fy[yy, xx] + dy / n
-        rr = np.hypot(fxx, fyy)
-        scale = r0 / rr
-        ang = np.arctan2(fyy, fxx) - np.pi / 4
-        ang = (ang + np.pi / 4) % (np.pi / 2) - np.pi / 4  # fold to [-45°, 45°)
-        if all(abs(scale - s) / s > 0.01 or abs(ang - a) > 0.01 for s, a in out):
-            out.append((scale, ang))
+        out.append((float(score[yy, xx]), fx[yy, xx] + dx / n, fy[yy, xx] + dy / n))
+    return out, hp * win
+
+
+def _refine_peak(hpw: np.ndarray, gx: float, gy: float) -> tuple[float, float]:
+    """Polish a peak frequency by maximising the windowed DFT magnitude
+    around it (zoomed search, ~1/20 bin)."""
+    h, w = hpw.shape
+    sy, sx = max(1, h // 512), max(1, w // 512)          # subsample for speed
+    sub = hpw[::sy, ::sx]
+    yy = (np.arange(0, h, sy)[: sub.shape[0]])[:, None].astype(np.float64)
+    xx = (np.arange(0, w, sx)[: sub.shape[1]])[None, :].astype(np.float64)
+    n = 1 << int(np.ceil(np.log2(max(h, w))))
+    step = 0.5 / n
+    best = (gx, gy)
+
+    def mag(a, b):
+        ex = np.exp(-2j * np.pi * a * xx)
+        ey = np.exp(-2j * np.pi * b * yy)
+        return abs(np.sum((sub * ex) * ey))
+    cur = mag(gx, gy)
+    for _ in range(4):
+        cand = [(best[0] + dx * step, best[1] + dy * step)
+                for dx in (-1, 0, 1) for dy in (-1, 0, 1) if dx or dy]
+        improved = False
+        for a, b in cand:
+            m = mag(a, b)
+            if m > cur:
+                cur, best, improved = m, (a, b), True
+        if not improved:
+            step /= 3
+    return best
+
+
+def _pilot_candidates(y: np.ndarray, k: int = 6) -> list[np.ndarray]:
+    """Return up to k 2x2 matrices A (canonical px -> image px) from the pilot.
+
+    The pilot has two frequency vectors f1, f2. After any affine distortion
+    (scale, rotation, stretch, shear) they appear at g = A^-T f, so a pair of
+    peaks pins down A completely. Single peaks give a similarity fallback."""
+    peaks, hpw = _peaks(y, k=10)
+    r0 = np.sqrt(2) / PILOT
+    out: list[np.ndarray] = []
+
+    def add(A):
+        if all(np.abs(A - B).max() > 0.004 * np.abs(B).max() for B in out):
+            out.append(A)
+
+    pairs = []
+    for i in range(len(peaks)):
+        for j in range(i + 1, len(peaks)):
+            si, gxi, gyi = peaks[i]
+            sj, gxj, gyj = peaks[j]
+            ri, rj = np.hypot(gxi, gyi), np.hypot(gxj, gyj)
+            if not 0.75 < ri / rj < 1.33:
+                continue
+            cosang = abs(gxi * gxj + gyi * gyj) / (ri * rj)
+            if cosang > 0.5:                              # need roughly 90° apart
+                continue
+            pairs.append((min(si, sj), i, j))
+    pairs.sort(reverse=True)
+    refined = {}
+
+    def ref(i):
+        if i not in refined:
+            refined[i] = _refine_peak(hpw, peaks[i][1], peaks[i][2])
+        return refined[i]
+    for _, i, j in pairs[:3]:
+        g1, g2 = np.array(ref(i)), np.array(ref(j))
+        if g1[0] * g2[1] - g1[1] * g2[0] > 0:            # need det G < 0 (no mirror)
+            g2 = -g2
+        G = np.stack([g1, g2], 1)
+        AmT = G @ np.linalg.inv(_F)                       # A^-T
+        add(np.linalg.inv(AmT).T)
+    for s, gx, gy in peaks[:k]:                           # similarity fallback
+        gx, gy = ref(peaks.index((s, gx, gy)))
+        scale = r0 / np.hypot(gx, gy)
+        ang = np.arctan2(gy, gx) - np.pi / 4
+        c, sn = np.cos(ang), np.sin(ang)
+        add(scale * np.array([[c, -sn], [sn, c]]))
         if len(out) >= k:
             break
-    return out
+    return out[:k]
 
 
-def _resample(y: np.ndarray, scale: float, ang: float) -> np.ndarray:
-    """Map image to canonical grid (undo scale + rotation)."""
+def _resample(y: np.ndarray, A: np.ndarray):
+    """Map image to the canonical grid (undo the affine map A)."""
     h, w = y.shape
     cy, cx = (h - 1) / 2, (w - 1) / 2
-    ch, cw = int(h / scale), int(w / scale)
+    Ai = np.linalg.inv(A)
+    corners = Ai @ np.array([[-cx, cx, cx, -cx], [-cy, -cy, cy, cy]])
+    cw = int(np.ptp(corners[0])) + 1
+    ch = int(np.ptp(corners[1])) + 1
     vv, uu = np.mgrid[0:ch, 0:cw].astype(np.float64)
     vv -= (ch - 1) / 2
     uu -= (cw - 1) / 2
-    c, s = np.cos(ang), np.sin(ang)
-    x = scale * (c * uu - s * vv) + cx
-    yv = scale * (s * uu + c * vv) + cy
+    x = A[0, 0] * uu + A[0, 1] * vv + cx
+    yv = A[1, 0] * uu + A[1, 1] * vv + cy
     out = map_coordinates(y, [yv, x], order=1, mode="constant", cval=np.nan)
     valid = ~np.isnan(out)
     out[~valid] = 0.0
@@ -220,8 +310,13 @@ def _search_grid(c: np.ndarray, valid: np.ndarray):
             for ox in range(0, CELL, 2):
                 tx = 2 * np.pi * ox / CARRIER
                 wxs, wxc = np.cos(tx), -np.sin(tx)
-                S = (wys * wxs * _box_grid(I["ss"], oy, ox) + wys * wxc * _box_grid(I["sc"], oy, ox)
-                     + wyc * wxs * _box_grid(I["cs"], oy, ox) + wyc * wxc * _box_grid(I["cc"], oy, ox))
+                B = [_box_grid(I[q], oy, ox) for q in ("ss", "sc", "cs", "cc")]
+                S = wys * wxs * B[0] + wys * wxc * B[1] + wyc * wxs * B[2] + wyc * wxc * B[3]
+                if WEIGHTED:
+                    # energy near the carrier frequency in each cell (any phase):
+                    # busy image areas are noisy, so their vote counts less
+                    E = B[0] ** 2 + B[1] ** 2 + B[2] ** 2 + B[3] ** 2
+                    S = S / np.sqrt(E + np.median(E) * 0.25 + 1e-12)
                 acc = _fold(S)
                 acc /= np.sqrt(np.mean(acc ** 2)) + 1e-12
                 corr = np.real(np.fft.ifft2(np.fft.fft2(acc) * _SYNC_TF)) / _NSYNC
@@ -241,7 +336,11 @@ def _dup_agreement(slots) -> float:
     return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-12))
 
 
+_last_dup = [0.0]
+
+
 def _finish(score: float, slots) -> DecodeResult:
+    _last_dup[0] = _dup_agreement(slots) if slots is not None else 0.0
     if slots is None or score < SYNC_THRESHOLD or _dup_agreement(slots) < DUP_THRESHOLD:
         return DecodeResult(False, None, False, 0.0, score)
     lg = slots[_PERM]
@@ -255,22 +354,28 @@ def _finish(score: float, slots) -> DecodeResult:
     return DecodeResult(True, payload, ok, conf, score)
 
 
-def decode_print(img: Image.Image) -> DecodeResult:
+def decode_print(img: Image.Image, deadline: float | None = None) -> DecodeResult:
     y = _luma(img)
     best = DecodeResult(False, None, False, 0.0, 0.0)
-    for scale, ang in _pilot_candidates(y, k=4):
-        c, valid = _resample(y, scale, ang)
+    import time
+    for A in _pilot_candidates(y, k=4):
+        if deadline and time.monotonic() > deadline:
+            break
+        c, valid = _resample(y, A)
         res = _finish(*_search_grid(c, valid))
         if res.found and res.crc_ok:
             return res
         if res.sync_score > best.sync_score:
             best = res
-        if res.sync_score < 0.3:
+        if res.sync_score < 0.3 or _last_dup[0] < 0.2:
             continue                      # not even close: wrong peak
-        # promising: refine scale/angle a little around the estimate
+        # promising: refine the map a little around the estimate
         for ds, da in ((0.996, 0), (1.004, 0), (1, -0.003), (1, 0.003),
                        (0.992, 0), (1.008, 0)):
-            c, valid = _resample(y, scale * ds, ang + da)
+            if deadline and time.monotonic() > deadline:
+                break
+            c_, s_ = np.cos(da), np.sin(da)
+            c, valid = _resample(y, ds * np.array([[c_, -s_], [s_, c_]]) @ A)
             res = _finish(*_search_grid(c, valid))
             if res.found and res.crc_ok:
                 return res

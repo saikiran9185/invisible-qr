@@ -5,3 +5,4 @@ __pycache__/
 out*.png
 .DS_Store
 .video_tmp/
+work/
