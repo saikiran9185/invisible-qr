@@ -74,7 +74,7 @@ th{font:600 12px 'JetBrains Mono',monospace;letter-spacing:.08em;text-transform:
 td:last-child,th:last-child{text-align:right;font-family:'JetBrains Mono',monospace}
 .y{color:var(--ok)}.n{color:var(--no)}
 /* roadmap */
-.phases{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.phases{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
 @media (max-width:860px){.phases{grid-template-columns:1fr 1fr}}
 @media (max-width:480px){.phases{grid-template-columns:1fr}}
 .phase{border:1px solid var(--line);border-radius:14px;padding:20px;background:var(--card)}
@@ -85,6 +85,13 @@ h3.sub{font:400 28px/1.1 'Instrument Serif',serif;margin:0 0 6px}
 .phase h3{font:400 26px/1.1 'Instrument Serif',serif;margin:8px 0}
 .phase p{margin:0;color:var(--muted);font-size:14px}
 footer{padding:40px 0 60px;font:13px 'JetBrains Mono',monospace;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.shots{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:22px 0 14px}
+.shots figure{margin:0}
+.shots img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;border:1px solid var(--line);display:block;background:var(--card)}
+.shots figcaption{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.45}
+.shots figcaption b{display:block;color:var(--ink);font-weight:600}
+.result{font:13px/1.5 'JetBrains Mono',monospace;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;color:var(--ok);margin:0 0 28px}
+@media (max-width:720px){.shots{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -95,7 +102,7 @@ footer{padding:40px 0 60px;font:13px 'JetBrains Mono',monospace;color:var(--mute
   </nav>
 
   <header>
-    <div class="eyebrow">IQR-1 · Research prototype · v0.2</div>
+    <div class="eyebrow">IQR-1 · Research prototype · v0.3</div>
     <h1>A QR code<br><em>you can't see.</em></h1>
     <p class="lede">InvisibleQR repeats tiny encoded patterns across an ordinary image. People see the photo. A scanner sees a recoverable code that links to product details, provenance or ownership.</p>
   </header>
@@ -123,6 +130,34 @@ footer{padding:40px 0 60px;font:13px 'JetBrains Mono',monospace;color:var(--mute
       <source src="explainer.mp4" type="video/mp4">
     </video>
     <p class="note">A poster is encoded with a hidden product ID, printed and scanned crooked (simulated), then decoded back to the exact ID.</p>
+  </section>
+
+  <section id="photo">
+    <div class="eyebrow">New in v0.3 · Phone photos</div>
+    <h2>Photograph the print. Read the code.</h2>
+    <p class="lede">The print profile now reads straight from a phone photo of a printed poster on a wall — taken at an angle, with the wall, tape and uneven light around it, even after WhatsApp shrinks it to 1600 px.</p>
+    <div class="shots">
+      <figure><img src="photo_1.jpg" alt="Simulated phone photo of a printed poster on a wall, taken from the side" loading="lazy"><figcaption><b>1 · The photo</b>Poster on a wall, phone 28° to the side, tilted, uneven light, JPEG.</figcaption></figure>
+      <figure><img src="photo_2.jpg" alt="The same photo with the detected poster outline in orange and the corrected outline in blue" loading="lazy"><figcaption><b>2 · Find + fix the corners</b><span style="color:#ff8c00">Orange</span>: paper edge. <span style="color:var(--accent)">Blue</span>: corners nudged until the hidden pilot pattern is sharpest — the true perspective.</figcaption></figure>
+      <figure><img src="photo_3.jpg" alt="The poster flattened to a straight-on rectangle" loading="lazy"><figcaption><b>3 · Flatten + decode</b>Full affine lock from the pilot, noise-weighted voting, error correction.</figcaption></figure>
+    </div>
+    <pre class="result">{ "protocol": "IQR-1", "id": "8F32A91C72B4D610", "type": "product", "verification": "valid", "profile": "print-photo" }</pre>
+    <div class="grid2">
+      <div>
+        <h3 class="sub">The pattern scales with the print</h3>
+        <p class="note">The code is sized to the artwork, not in pixels: the short side always holds 48 cells. An A5 flyer and an A0 banner carry the same pattern, just bigger — so a photo that frames the whole poster always sees enough of it, and bigger posters read from farther away. <code>--print-size A3</code> reports the cell size on paper and the reading distance.</p>
+      </div>
+      <div>
+        <table>
+          <tr><td>A4 · 12 MP phone</td><td class="y">up to ~1.3 m</td></tr>
+          <tr><td>A3 · 12 MP phone</td><td class="y">up to ~1.8 m</td></tr>
+          <tr><td>A1 · 12 MP phone</td><td class="y">up to ~3.6 m</td></tr>
+          <tr><td>Simulated phone photos decoded</td><td class="y">16 / 18</td></tr>
+          <tr><td>Poster &lt; ~10 px per cell in photo</td><td class="n">too small</td></tr>
+        </table>
+      </div>
+    </div>
+    <p class="note">Results are from a phone-photo simulator (halftone print, 3-D perspective, lens blur, light falloff, sensor noise, phone sharpening, JPEG). Real print-and-photo tests are next.</p>
   </section>
 
   <section id="how">
@@ -188,6 +223,7 @@ footer{padding:40px 0 60px;font:13px 'JetBrains Mono',monospace;color:var(--mute
           <tr><td>Scanned smaller, noisy, JPEG 70</td><td class="y">yes</td></tr>
           <tr><td>Rotated 30°</td><td class="y">yes</td></tr>
           <tr><td>Dark exposure, 12° tilt, 1.5×</td><td class="y">yes</td></tr>
+          <tr><td>Phone photo of the print, at an angle</td><td class="y">yes · v0.3</td></tr>
           <tr><td>Real photos, print-file size</td><td class="y">12 / 12</td></tr>
           <tr><td>False codes on unmarked images</td><td class="y">0 / 27</td></tr>
         </table>
@@ -203,10 +239,11 @@ footer{padding:40px 0 60px;font:13px 'JetBrains Mono',monospace;color:var(--mute
 
   <section id="roadmap">
     <div class="eyebrow">Roadmap</div>
-    <h2>Four phases.</h2>
+    <h2>Where it's at.</h2>
     <div class="phases">
       <div class="phase done"><small>01 · DONE</small><h3>Digital + print codecs</h3><p>Payload format, C1 and C2 codecs, error correction, print-scan simulator.</p></div>
-      <div class="phase"><small>02</small><h3>Camera decoding</h3><p>Perspective correction, neural codec, Android scanner app.</p></div>
+      <div class="phase done"><small>02a · DONE</small><h3>Phone photos of prints</h3><p>Poster detection, pilot-based perspective fix, affine lock, weighted voting, print-size-aware pattern.</p></div>
+      <div class="phase"><small>02b</small><h3>Live camera app</h3><p>Android scanner, video frames, neural codec for smaller and farther codes.</p></div>
       <div class="phase"><small>03</small><h3>Real print tests</h3><p>Real printers, paper, posters and packaging.</p></div>
       <div class="phase"><small>04</small><h3>Open protocol</h3><p>Public spec, reference decoder, signed registry, C2PA link.</p></div>
     </div>
